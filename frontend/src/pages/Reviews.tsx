@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import api from '../api';
 import { KPICard, StatusBadge, ProgressBar } from '../components/ui/StatusBadge';
-import { DataTable } from '../components/ui/Modal';
+import { Modal, DataTable } from '../components/ui/Modal';
 
 const Reviews = () => {
   const [activeTab, setActiveTab] = useState<'probation' | 'cycles'>('probation');
@@ -14,6 +14,16 @@ const Reviews = () => {
   const [activeCycles, setActiveCycles] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  
+  const [isLaunchModalOpen, setIsLaunchModalOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [cycleForm, setCycleForm] = useState({
+    type: 'biannual',
+    period_label: '',
+    start_date: '',
+    close_date: '',
+    finalize_date: ''
+  });
 
   const fetchData = async () => {
     setLoading(true);
@@ -52,7 +62,10 @@ const Reviews = () => {
           <button className="flex items-center gap-2 px-4 py-2 bg-white border border-border rounded-xl text-sm font-bold text-text-secondary hover:bg-slate-50 transition-all shadow-sm">
             <Calendar size={16} /> Schedule Cycle
           </button>
-          <button className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl text-sm font-bold shadow-lg shadow-primary/20 hover:bg-primary-dark transition-all transform hover:-translate-y-0.5 active:scale-95">
+          <button 
+            onClick={() => setIsLaunchModalOpen(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl text-sm font-bold shadow-lg shadow-primary/20 hover:bg-primary-dark transition-all transform hover:-translate-y-0.5 active:scale-95"
+          >
             <PlayCircle size={16} /> Launch New Cycle
           </button>
         </div>
@@ -260,7 +273,127 @@ const Reviews = () => {
         </div>
         <button className="px-6 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-xs font-bold transition-all border border-white/10">Configure Rules</button>
       </div>
+
+      <LaunchCycleModal 
+        isOpen={isLaunchModalOpen} 
+        onClose={() => setIsLaunchModalOpen(false)}
+        onSuccess={fetchData}
+        form={cycleForm}
+        setForm={setCycleForm}
+        isSubmitting={isSubmitting}
+        setIsSubmitting={setIsSubmitting}
+      />
     </div>
+  );
+};
+
+const LaunchCycleModal = ({ isOpen, onClose, onSuccess, form, setForm, isSubmitting, setIsSubmitting }: any) => {
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    try {
+      await api.post('/reviews/start', form);
+      alert('Cycle successfully launched! 🚀');
+      onSuccess();
+      onClose();
+      // Reset form
+      setForm({
+        type: 'biannual',
+        period_label: '',
+        start_date: '',
+        close_date: '',
+        finalize_date: ''
+      });
+    } catch (err) {
+      alert('Failed to launch cycle. Please check your inputs.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Launch Performance Cycle">
+      <form onSubmit={handleSubmit} className="space-y-6">
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-text-muted uppercase tracking-wider">Cycle Type</label>
+            <select 
+              className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none"
+              value={form.type}
+              onChange={(e) => setForm({ ...form, type: e.target.value })}
+              required
+            >
+              <option value="biannual">Biannual Review</option>
+              <option value="quarterly">Quarterly Review</option>
+            </select>
+          </div>
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-text-muted uppercase tracking-wider">Period Label</label>
+            <input 
+              type="text"
+              placeholder="e.g. Q1 2026"
+              className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none"
+              value={form.period_label}
+              onChange={(e) => setForm({ ...form, period_label: e.target.value })}
+              required
+            />
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-text-muted uppercase tracking-wider block">Submission Dates</label>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="space-y-1">
+                <span className="text-[10px] text-text-muted font-medium">Start Date</span>
+                <input 
+                  type="date"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs"
+                  value={form.start_date}
+                  onChange={(e) => setForm({ ...form, start_date: e.target.value })}
+                  required
+                />
+              </div>
+              <div className="space-y-1">
+                <span className="text-[10px] text-text-muted font-medium">Close Date</span>
+                <input 
+                  type="date"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs"
+                  value={form.close_date}
+                  onChange={(e) => setForm({ ...form, close_date: e.target.value })}
+                  required
+                />
+              </div>
+              <div className="space-y-1">
+                <span className="text-[10px] text-text-muted font-medium">Finalize Date</span>
+                <input 
+                  type="date"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs"
+                  value={form.finalize_date}
+                  onChange={(e) => setForm({ ...form, finalize_date: e.target.value })}
+                  required
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
+           <p className="text-[10px] text-text-muted leading-relaxed">
+             Launching a new cycle will notify all eligible employees and managers to begin their performance assessments. 
+             This action cannot be undone.
+           </p>
+        </div>
+
+        <button 
+          type="submit"
+          disabled={isSubmitting}
+          className="w-full py-3.5 bg-primary text-white rounded-xl text-sm font-black shadow-lg shadow-primary/20 hover:bg-primary-dark transition-all flex items-center justify-center gap-2"
+        >
+          {isSubmitting ? 'Launching...' : 'Activate Review Cycle'}
+        </button>
+      </form>
+    </Modal>
   );
 };
 
