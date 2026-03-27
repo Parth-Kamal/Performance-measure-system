@@ -14,6 +14,7 @@ import Settings from './pages/Settings';
 import Login from './pages/Login';
 import SetupAccount from './pages/SetupAccount';
 import Notifications from './pages/Notifications';
+import Reviews from './pages/Reviews';
 
 const Placeholder = ({ name }: { name: string }) => (
   <div className="flex flex-col items-center justify-center min-h-[60vh] text-text-muted">
@@ -39,7 +40,7 @@ const App = () => {
             <Route path="/admin" element={<ProtectedRoute><LayoutWrapper><AdminDashboard /></LayoutWrapper></ProtectedRoute>} />
             <Route path="/settings" element={<ProtectedRoute><LayoutWrapper><Settings /></LayoutWrapper></ProtectedRoute>} />
             <Route path="/notifications" element={<ProtectedRoute><LayoutWrapper><Notifications /></LayoutWrapper></ProtectedRoute>} />
-            <Route path="/reviews" element={<ProtectedRoute><LayoutWrapper><Placeholder name="reviews" /></LayoutWrapper></ProtectedRoute>} />
+            <Route path="/reviews" element={<ProtectedRoute><LayoutWrapper><Reviews /></LayoutWrapper></ProtectedRoute>} />
             
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
           </Routes>
