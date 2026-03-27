@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, Filter, Calendar, MoreVertical, Target, AlertTriangle, ChevronRight, Clock, CheckCircle } from 'lucide-react';
+import { Plus, Search, Filter, Calendar, MoreVertical, Target, AlertTriangle, ChevronRight, Clock, CheckCircle, UserCheck, Users, Briefcase } from 'lucide-react';
 import { StatusBadge, ProgressBar } from '../components/ui/StatusBadge';
 import { Modal } from '../components/ui/Modal';
 import api from '../api';
@@ -26,11 +26,15 @@ const Goals = () => {
     title: '',
     description: '',
     weightage: 25,
-    deadline: ''
+    deadline: '',
+    goal_level: 'Individual'
   });
 
+  const [assignmentType, setAssignmentType] = useState<'self' | 'manager' | 'employee'>('self');
   const [reportees, setReportees] = useState<any[]>([]);
-  const [selectedReportee, setSelectedReportee] = useState('');
+  const [managers, setManagers] = useState<any[]>([]);
+  const [allEmployees, setAllEmployees] = useState<any[]>([]);
+  const [selectedAssignee, setSelectedAssignee] = useState('');
   const [userRole, setUserRole] = useState('');
 
   const fetchGoals = async () => {
@@ -39,14 +43,21 @@ const Goals = () => {
       const res = await api.get('/goals');
       setGoals(res.data);
       
-      // Fetch profile for role
       const profile = await api.get('/users/me');
-      setUserRole(profile.data.role);
+      const role = profile.data.role;
+      setUserRole(role);
       
-      // If manager, fetch reportees
-      if (profile.data.role === 'manager' || profile.data.role === 'admin') {
+      if (role === 'manager' || role === 'admin') {
         const repRes = await api.get('/users/reportees');
         setReportees(repRes.data);
+      }
+
+      if (role?.toLowerCase() === 'admin') {
+        const mgrRes = await api.get('/users/managers');
+        setManagers(mgrRes.data);
+        
+        const empRes = await api.get('/users/all-employees');
+        setAllEmployees(empRes.data);
       }
     } catch (err) {
       console.error('Failed to fetch goals:', err);
@@ -61,31 +72,43 @@ const Goals = () => {
 
   const handleCreateGoal = async (isSubmit = false) => {
     if (!newGoal.title) return alert('Title is required');
+    if (newGoal.weightage < 1 || newGoal.weightage > 100) return alert('Weightage must be between 1 and 100%');
+    
+    // Assignment validation
+    if (assignmentType !== 'self' && !selectedAssignee) {
+      return alert(`Please select a ${assignmentType} to assign this goal to.`);
+    }
+
     try {
       const payload: any = {
         ...newGoal,
         status: isSubmit ? 'pending approval' : 'draft'
       };
       
-      // If manager is creating for someone else
-      if (selectedReportee) {
-        payload.employee_id = selectedReportee;
-        payload.status = 'active'; // Direct assignment is active by default
+      if (assignmentType !== 'self') {
+        payload.employee_id = selectedAssignee;
+        // Direct assignment is active by default, draft/pending if specified
+        payload.status = isSubmit ? 'active' : 'draft'; 
       }
 
       const res = await api.post('/goals', payload);
       
-      if (isSubmit && !selectedReportee) {
+      if (isSubmit && assignmentType === 'self') {
         await api.put(`/goals/${res.data.id}/submit`);
       }
       
       setIsModalOpen(false);
-      setNewGoal({ title: '', description: '', weightage: 25, deadline: '' });
-      setSelectedReportee('');
+      resetForm();
       fetchGoals();
     } catch (err) {
       alert('Failed to create goal');
     }
+  };
+
+  const resetForm = () => {
+    setNewGoal({ title: '', description: '', weightage: 25, deadline: '', goal_level: 'Individual' });
+    setSelectedAssignee('');
+    setAssignmentType('self');
   };
 
   const filters = ['All', 'Draft', 'Pending Approval', 'Active', 'Completed', 'Archived'];
@@ -113,8 +136,6 @@ const Goals = () => {
     }
   };
 
-  const currentGoals = goals.filter(g => g.status !== 'archived');
-
   if (loading) return (
     <div className="flex items-center justify-center min-h-[400px]">
       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
@@ -125,12 +146,12 @@ const Goals = () => {
     <div className="space-y-8 animate-in fade-in duration-700">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-text-primary tracking-tight">My Goals</h2>
-          <p className="text-text-muted text-sm mt-1">Manage and track your performance objectives.</p>
+          <h2 className="text-2xl font-bold text-text-primary tracking-tight">Performance Goals</h2>
+          <p className="text-text-muted text-sm mt-1">Manage and track performance objectives across the organization.</p>
         </div>
         <div className="flex items-center gap-3">
           <button 
-            onClick={() => setIsModalOpen(true)}
+            onClick={() => { resetForm(); setIsModalOpen(true); }}
             className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-lg text-sm font-bold shadow-lg shadow-primary/20 hover:bg-primary-dark transition-all transform hover:-translate-y-0.5 active:scale-95"
           >
             <Plus size={18} />
@@ -160,7 +181,6 @@ const Goals = () => {
             key={goal.id} 
             className="bg-white rounded-[2.5rem] border border-slate-100 p-8 shadow-xl shadow-slate-200/50 hover:shadow-2xl hover:shadow-primary/10 transition-all duration-500 group relative overflow-hidden"
           >
-            {/* Aesthetic accent gradient */}
             <div className={`absolute top-0 right-0 w-32 h-32 bg-gradient-to-br transition-opacity duration-500 opacity-10 group-hover:opacity-20 -mr-8 -mt-8 rounded-full blur-2xl ${
               goal.status === 'completed' ? 'from-success' : 
               goal.status.includes('pending') ? 'from-warning' : 
@@ -218,14 +238,13 @@ const Goals = () => {
                 <ProgressBar progress={Number(goal.completion_pct)} color={goal.status === 'completed' ? 'success' : 'primary'} />
               </div>
 
-              {/* Action Buttons */}
               <div className="pt-2">
                 {goal.status === 'draft' && (
                   <button 
                     onClick={() => handleSubmitForApproval(goal.id)}
                     className="w-full flex items-center justify-center gap-2 py-4 rounded-[1.5rem] bg-primary text-white font-bold hover:bg-primary/90 transition-all shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-95 group/btn"
                   >
-                    Submit for Approval
+                    {(userRole === 'admin' || userRole === 'manager') ? 'Assign Task' : 'Submit for Approval'}
                     <ChevronRight size={18} className="group-hover/btn:translate-x-1 transition-transform" />
                   </button>
                 )}
@@ -253,75 +272,126 @@ const Goals = () => {
       </div>
 
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Create New Goal">
-        <div className="space-y-5">
-          {(userRole === 'manager' || userRole === 'admin') && (
-            <div className="space-y-2">
-              <label className="text-xs font-bold text-text-secondary uppercase">Assign To (Optional)</label>
-              <select 
-                className="w-full px-4 py-2.5 bg-slate-50 border border-border rounded-lg text-sm focus:ring-2 focus:ring-primary/20 outline-none"
-                value={selectedReportee}
-                onChange={(e) => setSelectedReportee(e.target.value)}
-              >
-                <option value="">Self (My Goal)</option>
-                {reportees.map(r => (
-                  <option key={r.id} value={r.id}>{r.name} ({r.email})</option>
-                ))}
-              </select>
-              <p className="text-[10px] text-text-muted italic">Managers can assign goals directly to their reportees.</p>
+        <div className="space-y-5 px-1 py-2">
+          {/* Assignment Type Selection */}
+          {(userRole === 'admin' || userRole === 'manager') && (
+            <div className="space-y-3">
+              <label className="text-xs font-extra-bold text-text-secondary uppercase tracking-wider flex items-center gap-2">
+                <Users size={14} className="text-primary" /> Assignment Type
+              </label>
+              <div className="grid grid-cols-2 gap-3">
+                <button 
+                  onClick={() => { setAssignmentType('self'); setSelectedAssignee(''); }}
+                  className={`flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all ${assignmentType === 'self' ? 'border-primary bg-primary/5 text-primary' : 'border-slate-100 hover:border-slate-200 text-text-muted'}`}
+                >
+                  <UserCheck size={20} />
+                  <span className="text-[10px] font-bold">Self</span>
+                </button>
+                
+                {userRole === 'admin' && (
+                  <button 
+                    onClick={() => { setAssignmentType('manager'); setSelectedAssignee(''); }}
+                    className={`flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all ${assignmentType === 'manager' ? 'border-primary bg-primary/5 text-primary' : 'border-slate-100 hover:border-slate-200 text-text-muted'}`}
+                  >
+                    <Briefcase size={20} />
+                    <span className="text-[10px] font-bold">Manager</span>
+                  </button>
+                )}
+              </div>
+              <p className="text-[10px] text-text-muted italic bg-slate-50 p-2 rounded-lg border border-slate-100 mt-2">
+                {userRole === 'admin' ? "Admins can assign goals to managers." : "Managers can manage their own goals."}
+              </p>
             </div>
           )}
+
+          {/* Conditional Dropdowns */}
+          {assignmentType === 'manager' && userRole === 'admin' && (
+            <div className="space-y-2 animate-in slide-in-from-top-2 duration-300">
+              <label className="text-xs font-bold text-text-secondary uppercase">Select Manager</label>
+              <select 
+                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none shadow-inner"
+                value={selectedAssignee}
+                onChange={(e) => setSelectedAssignee(e.target.value)}
+              >
+                <option value="">Choose a manager...</option>
+                {managers.map(m => (
+                  <option key={m.id} value={m.id}>{m.name} ({m.email})</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-text-secondary uppercase">Goal Level</label>
+              <select 
+                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none"
+                value={newGoal.goal_level}
+                onChange={(e) => setNewGoal({...newGoal, goal_level: e.target.value})}
+              >
+                <option value="Individual">Individual Goal</option>
+                <option value="Team">Team Goal</option>
+                <option value="Company">Company Goal</option>
+              </select>
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-text-secondary uppercase">Weightage (%)</label>
+              <input 
+                type="number" 
+                min="1" 
+                max="100"
+                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none" 
+                value={newGoal.weightage}
+                onChange={(e) => setNewGoal({...newGoal, weightage: parseInt(e.target.value)})}
+              />
+            </div>
+          </div>
+
           <div className="space-y-2">
             <label className="text-xs font-bold text-text-secondary uppercase">Goal Title</label>
             <input 
               type="text" 
               placeholder="e.g., Improve System Performance" 
-              className="w-full px-4 py-2.5 bg-slate-50 border border-border rounded-lg text-sm focus:ring-2 focus:ring-primary/20 outline-none" 
+              className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none shadow-inner" 
               value={newGoal.title}
               onChange={(e) => setNewGoal({...newGoal, title: e.target.value})}
             />
           </div>
+
           <div className="space-y-2">
             <label className="text-xs font-bold text-text-secondary uppercase">Description</label>
             <textarea 
               rows={3} 
               placeholder="Describe the outcome..." 
-              className="w-full px-4 py-2.5 bg-slate-50 border border-border rounded-lg text-sm focus:ring-2 focus:ring-primary/20 outline-none" 
+              className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none shadow-inner" 
               value={newGoal.description}
               onChange={(e) => setNewGoal({...newGoal, description: e.target.value})}
             />
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <label className="text-xs font-bold text-text-secondary uppercase">Weightage (%)</label>
-              <input 
-                type="number" 
-                className="w-full px-4 py-2.5 bg-slate-50 border border-border rounded-lg text-sm focus:ring-2 focus:ring-primary/20 outline-none" 
-                value={newGoal.weightage}
-                onChange={(e) => setNewGoal({...newGoal, weightage: parseInt(e.target.value)})}
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-xs font-bold text-text-secondary uppercase">Deadline</label>
-              <input 
-                type="date" 
-                className="w-full px-4 py-2.5 bg-slate-50 border border-border rounded-lg text-sm focus:ring-2 focus:ring-primary/20 outline-none" 
-                value={newGoal.deadline}
-                onChange={(e) => setNewGoal({...newGoal, deadline: e.target.value})}
-              />
-            </div>
+
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-text-secondary uppercase">Deadline</label>
+            <input 
+              type="date" 
+              className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none" 
+              value={newGoal.deadline}
+              onChange={(e) => setNewGoal({...newGoal, deadline: e.target.value})}
+            />
           </div>
-          <div className="flex gap-3 pt-4">
+
+          <div className="flex gap-3 pt-6">
             <button 
               onClick={() => handleCreateGoal(false)}
-              className="flex-1 py-2.5 border border-border rounded-lg text-sm font-bold text-text-secondary hover:bg-slate-50 transition-all"
+              className="flex-1 py-3.5 border border-slate-200 rounded-xl text-sm font-bold text-text-secondary hover:bg-slate-50 transition-all active:scale-95"
             >
               Save as Draft
             </button>
             <button 
               onClick={() => handleCreateGoal(true)}
-              className="flex-1 py-2.5 bg-primary text-white rounded-lg text-sm font-bold shadow-lg shadow-primary/20 hover:bg-primary-dark transition-all"
+              className="flex-1 py-3.5 bg-primary text-white rounded-xl text-sm font-bold shadow-lg shadow-primary/20 hover:bg-primary-dark transition-all active:scale-95 transform hover:-translate-y-0.5"
             >
-              Submit for Approval
+              {assignmentType === 'self' ? 'Submit for Approval' : 'Assign Task'}
             </button>
           </div>
         </div>

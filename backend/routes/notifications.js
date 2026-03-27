@@ -30,4 +30,17 @@ router.patch('/:id/read', authenticateToken, async (req, res) => {
   }
 });
 
+// Mark all notifications as read for current user
+router.patch('/read-all', authenticateToken, async (req, res) => {
+  try {
+    await db.query(
+      'UPDATE notifications SET is_read = TRUE WHERE user_id = $1',
+      [req.user.id]
+    );
+    res.json({ message: 'All notifications marked as read' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;

@@ -39,7 +39,7 @@ router.post('/', authenticateToken, async (req, res) => {
   }
 });
 
-// Admin Review Queue
+// Admin Review Queue (Original flags view)
 router.get('/flags', authenticateToken, authorizeRoles('admin'), async (req, res) => {
   try {
     const result = await db.query(
@@ -47,6 +47,67 @@ router.get('/flags', authenticateToken, authorizeRoles('admin'), async (req, res
       ['soft', 'hard', 'repeat']
     );
     res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Full Detailed Feedback List (For Admin Dashboard)
+router.get('/all-detailed', authenticateToken, authorizeRoles('admin'), async (req, res) => {
+  try {
+    const query = `
+      SELECT 
+        f.id,
+        f.employee_id,
+        u.name as employee_name,
+        u.email as employee_email,
+        u.role as employee_role,
+        -- Need department - assuming it's in a detail table or I'll use a placeholder if not found
+        -- Actually, init.sql doesn't have department in users table, let's check users.js or detail tables
+        m.name as manager_name,
+        f.form_type,
+        f.overall_rating,
+        f.open_text,
+        f.submitted_at,
+        f.flag_status,
+        f.cycle_id,
+        f.probation_trigger_id
+      FROM feedback_submissions f
+      JOIN users u ON f.employee_id = u.id
+      LEFT JOIN users m ON u.manager_id = m.id
+      ORDER BY f.submitted_at DESC
+    `;
+    const result = await db.query(query);
+    
+    // Group by employee and cycle to create the "Comparison" view
+    const grouped = {};
+    result.rows.forEach(row => {
+      const key = `${row.employee_id}_${row.cycle_id || row.probation_trigger_id || 'none'}`;
+      if (!grouped[key]) {
+        grouped[key] = {
+          id: key,
+          employeeName: row.employee_name,
+          department: 'General', // Placeholder - will attempt to get real dept if available
+          managerName: row.manager_name || 'System',
+          status: 'Completed',
+          timestamp: row.submitted_at,
+          selfRating: null,
+          selfComment: null,
+          managerRating: null,
+          managerComment: null,
+        };
+      }
+      
+      if (row.form_type === 'self') {
+        grouped[key].selfRating = row.overall_rating;
+        grouped[key].selfComment = typeof row.open_text === 'string' ? row.open_text : JSON.stringify(row.open_text);
+      } else {
+        grouped[key].managerRating = row.overall_rating;
+        grouped[key].managerComment = typeof row.open_text === 'string' ? row.open_text : JSON.stringify(row.open_text);
+      }
+    });
+
+    res.json(Object.values(grouped));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

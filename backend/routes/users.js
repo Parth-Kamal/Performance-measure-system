@@ -170,6 +170,16 @@ router.get('/unassigned-employees', authenticateToken, authorizeRoles('admin'), 
   }
 });
 
+// Get all employees (for admin direct assignment)
+router.get('/all-employees', authenticateToken, authorizeRoles('admin'), async (req, res) => {
+  try {
+    const result = await db.query('SELECT id, name, email FROM users WHERE LOWER(role::text) = \'employee\' ORDER BY name ASC');
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Assign team members to a manager (admin only)
 router.post('/assign-team', authenticateToken, authorizeRoles('admin'), async (req, res) => {
   const { managerId, employeeIds } = req.body;
@@ -233,17 +243,5 @@ router.get('/team', authenticateToken, async (req, res) => {
   }
 });
 
-// Get reportees for a manager
-router.get('/reportees', authenticateToken, authorizeRoles('manager', 'admin'), async (req, res) => {
-  try {
-    const result = await db.query(
-      'SELECT id, name, email, role FROM users WHERE manager_id = $1 ORDER BY name ASC',
-      [req.user.id]
-    );
-    res.json(result.rows);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
 
 module.exports = router;
