@@ -17,8 +17,8 @@ router.post('/', authenticateToken, async (req, res) => {
     try {
       await client.query('BEGIN');
       const result = await client.query(
-        'INSERT INTO goals (employee_id, title, description, weightage, deadline, flag_status, cycle_id, status) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *',
-        [targetEmployeeId, title, description, weightage || 0, deadline || null, flag_status || 'none', cycle_id || null, initialStatus]
+        'INSERT INTO goals (employee_id, title, description, weightage, deadline, flag_status, cycle_id, status, assigner_id, parent_goal_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *',
+        [targetEmployeeId, title, description, weightage || 0, deadline || null, flag_status || 'none', cycle_id || null, initialStatus, req.user.id, req.body.parent_goal_id || null]
       );
       
       const goal = result.rows[0];
@@ -196,7 +196,14 @@ router.patch('/:id/completion', authenticateToken, async (req, res) => {
 // Get user goals
 router.get('/', authenticateToken, async (req, res) => {
   try {
-    const result = await db.query('SELECT * FROM goals WHERE employee_id = $1', [req.user.id]);
+    const query = `
+      SELECT g.*, u.name as assigner_name 
+      FROM goals g 
+      LEFT JOIN users u ON g.assigner_id = u.id 
+      WHERE g.employee_id = $1
+      ORDER BY g.created_at DESC
+    `;
+    const result = await db.query(query, [req.user.id]);
     res.json(result.rows);
   } catch (err) {
     res.status(500).json({ error: err.message });

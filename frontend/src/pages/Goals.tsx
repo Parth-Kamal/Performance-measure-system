@@ -6,6 +6,7 @@ import api from '../api';
 
 interface Goal {
   id: string;
+  employee_id: string;
   title: string;
   description: string;
   status: 'draft' | 'pending approval' | 'pending completion approval' | 'active' | 'completed' | 'archived';
@@ -13,6 +14,9 @@ interface Goal {
   completion_pct: number;
   deadline: string;
   flag_status: 'none' | 'soft' | 'hard' | 'repeat';
+  assigner_id?: string;
+  assigner_name?: string;
+  parent_goal_id?: string;
 }
 
 const Goals = () => {
@@ -27,7 +31,8 @@ const Goals = () => {
     description: '',
     weightage: 25,
     deadline: '',
-    goal_level: 'Individual'
+    goal_level: 'Individual',
+    parent_goal_id: '' as string | undefined
   });
 
   const [assignmentType, setAssignmentType] = useState<'self' | 'manager' | 'employee'>('self');
@@ -106,7 +111,7 @@ const Goals = () => {
   };
 
   const resetForm = () => {
-    setNewGoal({ title: '', description: '', weightage: 25, deadline: '', goal_level: 'Individual' });
+    setNewGoal({ title: '', description: '', weightage: 25, deadline: '', goal_level: 'Individual', parent_goal_id: '' });
     setSelectedAssignee('');
     setAssignmentType('self');
   };
@@ -211,6 +216,15 @@ const Goals = () => {
               </div>
             </div>
 
+            {goal.assigner_name && goal.assigner_id !== goal.employee_id && (
+              <div className="flex items-center gap-2 mb-4 px-2">
+                <div className="px-3 py-1 bg-slate-100 rounded-full flex items-center gap-1.5 border border-slate-200">
+                  <UserCheck size={12} className="text-primary" />
+                  <span className="text-[10px] font-bold text-text-secondary uppercase tracking-tight">Assigned by <span className="text-primary">{goal.assigner_name}</span></span>
+                </div>
+              </div>
+            )}
+
             <p className="text-text-secondary text-base leading-relaxed mb-8 line-clamp-3 min-h-[4.5rem] px-2">
               {goal.description || 'No description provided for this performance objective.'}
             </p>
@@ -264,6 +278,27 @@ const Goals = () => {
                     <Clock size={16} className="animate-pulse" />
                     Completion Review Pending
                   </div>
+                )}
+
+                {userRole === 'manager' && goal.status === 'active' && !goal.parent_goal_id && (
+                  <button 
+                    onClick={() => {
+                      resetForm();
+                      setNewGoal({
+                        ...newGoal,
+                        title: goal.title,
+                        description: goal.description,
+                        parent_goal_id: goal.id,
+                        goal_level: 'Team'
+                      });
+                      setIsModalOpen(true);
+                      setAssignmentType('employee'); // Managers usually cascade to employees
+                    }}
+                    className="w-full mt-3 flex items-center justify-center gap-2 py-3 rounded-[1.5rem] bg-indigo-50 text-indigo-600 font-bold hover:bg-indigo-100 transition-all border border-indigo-100"
+                  >
+                    <Plus size={16} />
+                    Cascade to Team
+                  </button>
                 )}
               </div>
             </div>
