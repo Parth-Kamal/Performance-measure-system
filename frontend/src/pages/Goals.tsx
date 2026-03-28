@@ -280,7 +280,7 @@ const Goals = () => {
                   </div>
                 )}
 
-                {userRole === 'manager' && goal.status === 'active' && !goal.parent_goal_id && (
+                {(userRole?.toLowerCase() === 'manager') && goal.status === 'active' && goal.assigner_id !== goal.employee_id && !goal.parent_goal_id && (
                   <button 
                     onClick={() => {
                       resetForm();
@@ -309,7 +309,7 @@ const Goals = () => {
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Create New Goal">
         <div className="space-y-5 px-1 py-2">
           {/* Assignment Type Selection */}
-          {(userRole === 'admin' || userRole === 'manager') && (
+          {(userRole?.toLowerCase() === 'admin' || userRole?.toLowerCase() === 'manager') && (
             <div className="space-y-3">
               <label className="text-xs font-extra-bold text-text-secondary uppercase tracking-wider flex items-center gap-2">
                 <Users size={14} className="text-primary" /> Assignment Type
@@ -323,7 +323,7 @@ const Goals = () => {
                   <span className="text-[10px] font-bold">Self</span>
                 </button>
                 
-                {userRole === 'admin' && (
+                {(userRole?.toLowerCase() === 'admin') && (
                   <button 
                     onClick={() => { setAssignmentType('manager'); setSelectedAssignee(''); }}
                     className={`flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all ${assignmentType === 'manager' ? 'border-primary bg-primary/5 text-primary' : 'border-slate-100 hover:border-slate-200 text-text-muted'}`}
@@ -332,15 +332,25 @@ const Goals = () => {
                     <span className="text-[10px] font-bold">Manager</span>
                   </button>
                 )}
+
+                {(userRole?.toLowerCase() === 'manager' || userRole?.toLowerCase() === 'admin') && (
+                  <button 
+                    onClick={() => { setAssignmentType('employee'); setSelectedAssignee(''); }}
+                    className={`flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all ${assignmentType === 'employee' ? 'border-primary bg-primary/5 text-primary' : 'border-slate-100 hover:border-slate-200 text-text-muted'}`}
+                  >
+                    <Users size={20} />
+                    <span className="text-[10px] font-bold">Employee</span>
+                  </button>
+                )}
               </div>
               <p className="text-[10px] text-text-muted italic bg-slate-50 p-2 rounded-lg border border-slate-100 mt-2">
-                {userRole === 'admin' ? "Admins can assign goals to managers." : "Managers can manage their own goals."}
+                {userRole?.toLowerCase() === 'admin' ? "Admins can assign goals to anyone." : "Managers can assign goals to their reportees."}
               </p>
             </div>
           )}
 
           {/* Conditional Dropdowns */}
-          {assignmentType === 'manager' && userRole === 'admin' && (
+          {assignmentType === 'manager' && (userRole?.toLowerCase() === 'admin') && (
             <div className="space-y-2 animate-in slide-in-from-top-2 duration-300">
               <label className="text-xs font-bold text-text-secondary uppercase">Select Manager</label>
               <select 
@@ -351,6 +361,22 @@ const Goals = () => {
                 <option value="">Choose a manager...</option>
                 {managers.map(m => (
                   <option key={m.id} value={m.id}>{m.name} ({m.email})</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {assignmentType === 'employee' && (userRole?.toLowerCase() === 'manager' || userRole?.toLowerCase() === 'admin') && (
+            <div className="space-y-2 animate-in slide-in-from-top-2 duration-300">
+              <label className="text-xs font-bold text-text-secondary uppercase">Select Employee</label>
+              <select 
+                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none shadow-inner"
+                value={selectedAssignee}
+                onChange={(e) => setSelectedAssignee(e.target.value)}
+              >
+                <option value="">Choose an employee...</option>
+                {(userRole?.toLowerCase() === 'admin' ? allEmployees : reportees).map(emp => (
+                  <option key={emp.id} value={emp.id}>{emp.name} ({emp.email})</option>
                 ))}
               </select>
             </div>
